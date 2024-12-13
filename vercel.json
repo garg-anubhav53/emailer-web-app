@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "api/send-emails": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

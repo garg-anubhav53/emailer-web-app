@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import csv from 'csv-parser';
-import fs from 'fs';
+import { Readable } from 'stream';
 
 interface EmailConfig {
   smtpUsername: string;
@@ -22,7 +22,7 @@ interface EmailData {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function sendEmails(
-  csvFile: string, 
+  csvBuffer: Buffer, 
   emailConfig: EmailConfig
 ): Promise<{ success: number; failed: number }> {
   const results: EmailData[] = [];
@@ -51,9 +51,10 @@ export async function sendEmails(
     }
   });
 
-  // Read CSV file
+  // Read CSV from buffer
   return new Promise((resolve, reject) => {
-    fs.createReadStream(csvFile)
+    const readable = Readable.from(csvBuffer);
+    readable
       .pipe(csv({
         strict: false,
         mapHeaders: ({ header }) => {

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmails } from '@/utils/emailSender';
-import path from 'path';
-import { writeFile } from 'fs/promises';
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,17 +35,12 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    const filePath = path.join(uploadDir, csvFile.name);
-
-    // Convert File to Buffer and save it
+    // Convert File to Buffer
     const bytes = await csvFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
 
     try {
-      const result = await sendEmails(filePath, {
+      const result = await sendEmails(buffer, {
         smtpUsername,
         smtpPassword,
         senderName,
@@ -56,9 +49,6 @@ export async function POST(req: NextRequest) {
         scheduledTime: scheduledTime || null,
         emailDelay
       });
-
-      // Clean up the uploaded file
-      await writeFile(filePath, ''); // Clear file contents
       
       return NextResponse.json({
         message: 'Emails sent successfully',
