@@ -5,6 +5,7 @@ import fs from 'fs';
 interface EmailConfig {
   smtpUsername: string;
   smtpPassword: string;
+  senderName: string;
   smtpServer: string;
   smtpPort: number;
 }
@@ -74,7 +75,7 @@ export async function sendEmails(
           try {
             console.log(`Attempting to send email to ${row.email}`);
             await transporter.sendMail({
-              from: `Bruno Gonçalves <${emailConfig.smtpUsername}>`,
+              from: `${emailConfig.senderName} <${emailConfig.smtpUsername}>`,
               to: row.email,
               subject: row.subject,
               html: `<div><p>Hi ${row.firstName},</p>${row.body}</p></div>`

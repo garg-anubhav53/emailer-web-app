@@ -9,8 +9,11 @@ export async function POST(req: NextRequest) {
     const csvFile = formData.get('csvFile') as File;
     const smtpUsername = formData.get('smtpUsername') as string;
     const smtpPassword = formData.get('smtpPassword') as string;
+    const senderName = formData.get('senderName') as string;
+    const smtpServer = formData.get('smtpServer') as string;
+    const smtpPort = parseInt(formData.get('smtpPort') as string, 10);
 
-    if (!csvFile || !smtpUsername || !smtpPassword) {
+    if (!csvFile || !smtpUsername || !smtpPassword || !senderName || !smtpServer || !smtpPort) {
       return NextResponse.json({ 
         message: 'Missing required fields' 
       }, { status: 400 });
@@ -29,8 +32,9 @@ export async function POST(req: NextRequest) {
       const result = await sendEmails(filePath, {
         smtpUsername,
         smtpPassword,
-        smtpServer: 'smtp.zoho.com',
-        smtpPort: 465
+        senderName,
+        smtpServer,
+        smtpPort
       });
 
       // Clean up the uploaded file
