@@ -10,6 +10,8 @@ export default function SendEmails() {
   const [senderName, setSenderName] = useState('');
   const [smtpServer, setSmtpServer] = useState('smtp.zoho.com');
   const [smtpPort, setSmtpPort] = useState('465');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [emailDelay, setEmailDelay] = useState('10');
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,6 +30,8 @@ export default function SendEmails() {
     formData.append('senderName', senderName);
     formData.append('smtpServer', smtpServer);
     formData.append('smtpPort', smtpPort);
+    formData.append('scheduledTime', scheduledTime);
+    formData.append('emailDelay', emailDelay);
 
     try {
       setIsLoading(true);
@@ -139,6 +143,43 @@ export default function SendEmails() {
                   disabled={isLoading}
                   placeholder="465"
                 />
+              </div>
+
+              <div>
+                <label className="block text-base font-semibold text-slate-700 mb-2">
+                  Scheduled Time
+                </label>
+                <input 
+                  type="datetime-local" 
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
+                />
+                <p className="mt-2 text-sm text-slate-600">
+                  Leave empty to send immediately
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-base font-semibold text-slate-700 mb-2">
+                  Delay Between Emails (seconds)
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input 
+                  type="number" 
+                  value={emailDelay}
+                  onChange={(e) => setEmailDelay(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  min="1"
+                  max="3600"
+                  disabled={isLoading}
+                  placeholder="10"
+                />
+                <p className="mt-2 text-sm text-slate-600">
+                  Recommended: 10-30 seconds to avoid spam filters
+                </p>
               </div>
 
               <div className="sm:col-span-2">

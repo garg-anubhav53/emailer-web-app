@@ -8,6 +8,8 @@ interface EmailConfig {
   senderName: string;
   smtpServer: string;
   smtpPort: number;
+  scheduledTime: string | null;
+  emailDelay: number;
 }
 
 interface EmailData {
@@ -17,6 +19,8 @@ interface EmailData {
   body: string;
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function sendEmails(
   csvFile: string, 
   emailConfig: EmailConfig
@@ -24,6 +28,17 @@ export async function sendEmails(
   const results: EmailData[] = [];
   let successCount = 0;
   let failedCount = 0;
+
+  // Wait for scheduled time if specified
+  if (emailConfig.scheduledTime) {
+    const scheduledDate = new Date(emailConfig.scheduledTime);
+    const now = new Date();
+    if (scheduledDate > now) {
+      const waitTime = scheduledDate.getTime() - now.getTime();
+      console.log(`Waiting ${waitTime / 1000} seconds until scheduled time...`);
+      await sleep(waitTime);
+    }
+  }
 
   // Create a transporter using the SMTP configuration
   const transporter = nodemailer.createTransport({
@@ -83,8 +98,11 @@ export async function sendEmails(
             console.log(`Successfully sent email to ${row.email}`);
             successCount++;
             
-            // Add shorter delay between emails (5-10 seconds)
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 5000));
+            // Wait for the specified delay between emails
+            if (results.indexOf(row) < results.length - 1) { // Don't delay after the last email
+              console.log(`Waiting ${emailConfig.emailDelay} seconds before sending next email...`);
+              await sleep(emailConfig.emailDelay * 1000);
+            }
           } catch (error) {
             console.error(`Failed to send email to ${row.email}:`, error);
             failedCount++;
