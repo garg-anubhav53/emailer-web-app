@@ -19,13 +19,7 @@ interface EmailData {
   body: string;
 }
 
-interface CSVRow {
-  [key: string]: string;
-  firstName?: string;
-  email?: string;
-  subject?: string;
-  body?: string;
-}
+type CSVRow = Record<string, string>;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
