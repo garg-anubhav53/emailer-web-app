@@ -1,232 +1,302 @@
 'use client';
 
-import { useState } from 'react';
-import axios from 'axios';
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+
+interface JobStatus {
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  completedEmails: number;
+  failedEmails: number;
+  totalEmails: number;
+  scheduledTime: string;
+  error?: string;
+}
 
 export default function SendEmails() {
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [smtpUsername, setSmtpUsername] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
-  const [senderName, setSenderName] = useState('');
-  const [smtpServer, setSmtpServer] = useState('smtp.zoho.com');
-  const [smtpPort, setSmtpPort] = useState('465');
-  const [scheduledTime, setScheduledTime] = useState('');
-  const [emailDelay, setEmailDelay] = useState('10');
-  const [status, setStatus] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!csvFile || !smtpUsername || !smtpPassword || !senderName || !smtpServer) {
-      setStatus('Please fill in all required fields');
-      return;
+  const [formData, setFormData] = useState({
+    smtpUsername: '',
+    smtpPassword: '',
+    senderName: '',
+    smtpServer: '',
+    smtpPort: '587',
+    scheduledTime: '',
+    emailDelay: '5'
+  });
+
+  useEffect(() => {
+    let statusInterval: NodeJS.Timeout;
+
+    if (jobId && jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed') {
+      statusInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/job-status/${jobId}`);
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.message || 'Failed to fetch job status');
+          }
+
+          setJobStatus(data);
+
+          if (data.status === 'completed' || data.status === 'failed') {
+            clearInterval(statusInterval);
+          }
+        } catch (error) {
+          console.error('Error fetching job status:', error);
+          clearInterval(statusInterval);
+        }
+      }, 2000); // Check every 2 seconds
     }
 
-    const formData = new FormData();
-    formData.append('csvFile', csvFile);
-    formData.append('smtpUsername', smtpUsername);
-    formData.append('smtpPassword', smtpPassword);
-    formData.append('senderName', senderName);
-    formData.append('smtpServer', smtpServer);
-    formData.append('smtpPort', smtpPort);
-    formData.append('scheduledTime', scheduledTime);
-    formData.append('emailDelay', emailDelay);
-
-    try {
-      setIsLoading(true);
-      setStatus('Sending emails...');
-      const response = await axios.post('/api/send-emails', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      setStatus(`Emails sent successfully. 
-        Successful: ${response.data.success}, 
-        Failed: ${response.data.failed}`);
-    } catch (error) {
-      console.error('Error:', error);
-      if (axios.isAxiosError(error)) {
-        setStatus(`Error sending emails: ${error.response?.data?.message || error.message}`);
-      } else {
-        setStatus('An unexpected error occurred');
+    return () => {
+      if (statusInterval) {
+        clearInterval(statusInterval);
       }
-    } finally {
-      setIsLoading(false);
+    };
+  }, [jobId, jobStatus?.status]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    setJobId(null);
+    setJobStatus(null);
+
+    try {
+      if (!file) {
+        throw new Error('Please select a CSV file');
+      }
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('csvFile', file);
+      Object.entries(formData).forEach(([key, value]) => {
+        formDataToSend.append(key, value);
+      });
+
+      const response = await fetch('/api/send-emails', {
+        method: 'POST',
+        body: formDataToSend,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send emails');
+      }
+
+      setSuccess('Email job created successfully!');
+      setJobId(data.jobId);
+      setJobStatus({
+        status: 'pending',
+        completedEmails: 0,
+        failedEmails: 0,
+        totalEmails: data.totalEmails,
+        scheduledTime: data.scheduledTime
+      });
+
+      // Reset form
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-600';
+      case 'failed': return 'text-red-600';
+      case 'processing': return 'text-blue-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const formatScheduledTime = (timeString: string) => {
+    return new Date(timeString).toLocaleString();
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-lg p-8 space-y-8">
+    <div className="container mx-auto px-4 py-8">
+      <Card className="p-6">
+        <h1 className="text-2xl font-bold mb-6">Send Emails</h1>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <h1 className="text-4xl font-bold text-slate-800 mb-3">Bulk Email Sender</h1>
-            <p className="text-lg text-slate-600">Send personalized emails using a CSV file</p>
+            <Label htmlFor="csvFile">CSV File</Label>
+            <Input
+              ref={fileInputRef}
+              id="csvFile"
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              disabled={loading}
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  Sender Name
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  SMTP Username (Email)
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="email" 
-                  value={smtpUsername}
-                  onChange={(e) => setSmtpUsername(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                  placeholder="you@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  SMTP Password
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="password" 
-                  value={smtpPassword}
-                  onChange={(e) => setSmtpPassword(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  SMTP Server
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  value={smtpServer}
-                  onChange={(e) => setSmtpServer(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                  placeholder="smtp.example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  SMTP Port
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  value={smtpPort}
-                  onChange={(e) => setSmtpPort(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                  placeholder="465"
-                />
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  Scheduled Time
-                </label>
-                <input 
-                  type="datetime-local" 
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isLoading}
-                />
-                <p className="mt-2 text-sm text-slate-600">
-                  Leave empty to send immediately
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  Delay Between Emails (seconds)
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="number" 
-                  value={emailDelay}
-                  onChange={(e) => setEmailDelay(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  min="1"
-                  max="3600"
-                  disabled={isLoading}
-                  placeholder="10"
-                />
-                <p className="mt-2 text-sm text-slate-600">
-                  Recommended: 10-30 seconds to avoid spam filters
-                </p>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-base font-semibold text-slate-700 mb-2">
-                  CSV File
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input 
-                  type="file" 
-                  accept=".csv"
-                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-base file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required 
-                  disabled={isLoading}
-                />
-                <p className="mt-2 text-base text-slate-600">
-                  CSV must include columns: First Name, Email, Subject, Body
-                </p>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="smtpUsername">SMTP Username</Label>
+              <Input
+                id="smtpUsername"
+                name="smtpUsername"
+                type="email"
+                value={formData.smtpUsername}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
             </div>
 
             <div>
-              <button 
-                type="submit" 
-                className={`w-full ${
-                  isLoading 
-                    ? 'bg-slate-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700'
-                } text-white text-lg font-semibold py-4 px-6 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Sending...' : 'Send Emails'}
-              </button>
+              <Label htmlFor="smtpPassword">SMTP Password</Label>
+              <Input
+                id="smtpPassword"
+                name="smtpPassword"
+                type="password"
+                value={formData.smtpPassword}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
             </div>
-          </form>
 
-          {status && (
-            <div className={`p-6 rounded-lg border-2 ${
-              status.includes('Error') 
-                ? 'bg-red-50 text-red-900 border-red-200' 
-                : 'bg-green-50 text-green-900 border-green-200'
-            }`}>
-              <p className="text-lg whitespace-pre-line font-medium">{status}</p>
+            <div>
+              <Label htmlFor="senderName">Sender Name</Label>
+              <Input
+                id="senderName"
+                name="senderName"
+                value={formData.senderName}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
             </div>
-          )}
-        </div>
-      </div>
+
+            <div>
+              <Label htmlFor="smtpServer">SMTP Server</Label>
+              <Input
+                id="smtpServer"
+                name="smtpServer"
+                value={formData.smtpServer}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="smtpPort">SMTP Port</Label>
+              <Input
+                id="smtpPort"
+                name="smtpPort"
+                type="number"
+                value={formData.smtpPort}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="emailDelay">Delay Between Emails (seconds)</Label>
+              <Input
+                id="emailDelay"
+                name="emailDelay"
+                type="number"
+                min="1"
+                max="3600"
+                value={formData.emailDelay}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="scheduledTime">Schedule Time (optional)</Label>
+              <Input
+                id="scheduledTime"
+                name="scheduledTime"
+                type="datetime-local"
+                value={formData.scheduledTime}
+                onChange={handleInputChange}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? 'Processing...' : 'Send Emails'}
+          </Button>
+        </form>
+
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert className="mt-4 bg-green-50">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-600">Success</AlertTitle>
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+
+        {jobStatus && (
+          <div className="mt-6 space-y-4">
+            <h2 className="text-xl font-semibold">Job Status</h2>
+            <div className="space-y-2">
+              <p>
+                Status: <span className={getStatusColor(jobStatus.status)}>
+                  {jobStatus.status.charAt(0).toUpperCase() + jobStatus.status.slice(1)}
+                </span>
+              </p>
+              <p>Scheduled Time: {formatScheduledTime(jobStatus.scheduledTime)}</p>
+              <p>Progress: {jobStatus.completedEmails} of {jobStatus.totalEmails} emails sent</p>
+              {jobStatus.failedEmails > 0 && (
+                <p className="text-red-600">Failed Emails: {jobStatus.failedEmails}</p>
+              )}
+              {jobStatus.error && (
+                <p className="text-red-600">Error: {jobStatus.error}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
