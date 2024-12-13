@@ -8,6 +8,7 @@ export default function SendEmails() {
   const [smtpUsername, setSmtpUsername] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [status, setStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +24,7 @@ export default function SendEmails() {
     formData.append('smtpPassword', smtpPassword);
 
     try {
+      setIsLoading(true);
       setStatus('Sending emails...');
       const response = await axios.post('/api/send-emails', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -32,8 +34,14 @@ export default function SendEmails() {
         Successful: ${response.data.success}, 
         Failed: ${response.data.failed}`);
     } catch (error) {
-      setStatus('Error sending emails');
-      console.error(error);
+      console.error('Error:', error);
+      if (axios.isAxiosError(error)) {
+        setStatus(`Error sending emails: ${error.response?.data?.message || error.message}`);
+      } else {
+        setStatus('An unexpected error occurred');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,6 +57,7 @@ export default function SendEmails() {
             onChange={(e) => setSmtpUsername(e.target.value)}
             className="w-full border p-2"
             required 
+            disabled={isLoading}
           />
         </div>
         <div>
@@ -59,6 +68,7 @@ export default function SendEmails() {
             onChange={(e) => setSmtpPassword(e.target.value)}
             className="w-full border p-2"
             required 
+            disabled={isLoading}
           />
         </div>
         <div>
@@ -69,17 +79,23 @@ export default function SendEmails() {
             onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
             className="w-full border p-2"
             required 
+            disabled={isLoading}
           />
         </div>
         <button 
           type="submit" 
-          className="bg-blue-500 text-white p-2 rounded"
+          className={`${
+            isLoading ? 'bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'
+          } text-white p-2 rounded transition-colors`}
+          disabled={isLoading}
         >
-          Send Emails
+          {isLoading ? 'Sending...' : 'Send Emails'}
         </button>
       </form>
       {status && (
-        <div className="mt-4 p-2 bg-gray-100">
+        <div className={`mt-4 p-2 rounded ${
+          status.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+        }`}>
           {status}
         </div>
       )}
