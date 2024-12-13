@@ -19,6 +19,14 @@ interface EmailData {
   body: string;
 }
 
+interface CSVRow {
+  [key: string]: string;
+  firstName?: string;
+  email?: string;
+  subject?: string;
+  body?: string;
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function sendEmails(
@@ -66,7 +74,7 @@ export async function sendEmails(
           return h;
         }
       }))
-      .on('data', (data: any) => {
+      .on('data', (data: CSVRow) => {
         // Log the raw data for debugging
         console.log('Raw CSV row:', data);
         
