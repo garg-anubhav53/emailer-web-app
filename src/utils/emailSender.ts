@@ -1,4 +1,3 @@
-// src/utils/emailSender.ts
 import nodemailer from 'nodemailer';
 import csv from 'csv-parser';
 import fs from 'fs';
@@ -40,30 +39,32 @@ export async function sendEmails(
   return new Promise((resolve, reject) => {
     fs.createReadStream(csvFile)
       .pipe(csv({
-        mapValues: ({ header, value }) => value.trim(),
-        strict: true
+        strict: false,
+        mapHeaders: ({ header }) => {
+          const h = header.toLowerCase().trim();
+          if (h === 'first name' || h === 'firstname' || h === 'first_name') return 'firstName';
+          if (h === 'email' || h === 'email address' || h === 'emailaddress') return 'email';
+          if (h === 'subject' || h === 'email subject') return 'subject';
+          if (h === 'body' || h === 'email body' || h === 'message') return 'body';
+          return h;
+        }
       }))
       .on('data', (data: any) => {
         // Log the raw data for debugging
         console.log('Raw CSV row:', data);
         
         // Validate required fields
-        const email = data.email || data.Email;
-        const firstName = data.firstName || data.FirstName || data['First Name'];
-        const subject = data.subject || data.Subject;
-        const body = data.body || data.Body;
-
-        if (!email || !firstName || !subject || !body) {
+        if (!data.email || !data.firstName || !data.subject || !data.body) {
           console.error('Missing required fields in CSV row:', data);
           failedCount++;
           return;
         }
 
         results.push({
-          email,
-          firstName,
-          subject,
-          body
+          email: data.email.trim(),
+          firstName: data.firstName.trim(),
+          subject: data.subject.trim(),
+          body: data.body.trim()
         });
       })
       .on('end', async () => {
@@ -81,8 +82,8 @@ export async function sendEmails(
             console.log(`Successfully sent email to ${row.email}`);
             successCount++;
             
-            // Add random delay between emails
-            await new Promise(resolve => setTimeout(resolve, Math.random() * 30000));
+            // Add shorter delay between emails (5-10 seconds)
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 5000));
           } catch (error) {
             console.error(`Failed to send email to ${row.email}:`, error);
             failedCount++;
