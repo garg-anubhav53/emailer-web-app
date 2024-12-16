@@ -10,13 +10,10 @@ interface EmailJob {
   error?: string;
 }
 
-type RouteContext = {
-  params: {
-    jobId: string;
-  };
-};
-
-export async function GET(request: NextRequest, { params }: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { jobId: string } }
+): Promise<NextResponse> {
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
