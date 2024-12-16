@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabase';
 
+interface EmailJob {
+  id: string;
+  status: string;
+  completed_emails: number;
+  failed_emails: number;
+  total_emails: number;
+  error?: string;
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: { jobId: string } }
 ) {
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', params.jobId)
+      .eq('id', context.params.jobId)
       .single();
 
     if (error) {
@@ -25,18 +34,21 @@ export async function GET(
       }, { status: 404 });
     }
 
-    return NextResponse.json({
+    const jobStatus: Partial<EmailJob> = {
       status: job.status,
       completedEmails: job.completed_emails,
       failedEmails: job.failed_emails,
       totalEmails: job.total_emails,
-      scheduledTime: job.scheduled_time,
-      error: job.error
-    });
+    };
+
+    if (job.error) {
+      jobStatus.error = job.error;
+    }
+
+    return NextResponse.json(jobStatus);
   } catch (error) {
-    console.error('Error fetching job status:', error);
     return NextResponse.json({ 
-      message: 'Error fetching job status',
+      message: 'Error processing request',
       error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
