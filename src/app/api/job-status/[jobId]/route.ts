@@ -14,13 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  context: { params: { jobId: string } }
+  { params }: { params: { jobId: string } }
 ): Promise<NextResponse> {
   try {
     const { data: job, error: supabaseError } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', context.params.jobId)
+      .eq('id', params.jobId)
       .single();
 
     if (supabaseError) {
