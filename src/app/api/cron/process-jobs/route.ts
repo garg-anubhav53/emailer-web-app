@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/utils/database';
-import { EmailJob } from '@/models/EmailJob';
+import { supabase } from '@/utils/supabase';
 import nodemailer from 'nodemailer';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -10,23 +9,29 @@ export const dynamic = 'force-dynamic';
 
 async function processJob(job: any) {
   const transporter = nodemailer.createTransport({
-    host: job.smtpConfig.server,
-    port: job.smtpConfig.port,
+    host: job.smtp_config.server,
+    port: job.smtp_config.port,
     secure: true,
     auth: {
-      user: job.smtpConfig.username,
-      pass: job.smtpConfig.password
+      user: job.smtp_config.username,
+      pass: job.smtp_config.password
     }
   });
 
-  let completedCount = 0;
-  let failedCount = 0;
+  let completedCount = job.completed_emails;
+  let failedCount = job.failed_emails;
 
   try {
-    for (const email of job.csvData) {
+    // Update job status to processing
+    await supabase
+      .from('email_jobs')
+      .update({ status: 'processing' })
+      .eq('id', job.id);
+
+    for (const email of job.csv_data) {
       try {
         await transporter.sendMail({
-          from: `${job.smtpConfig.senderName} <${job.smtpConfig.username}>`,
+          from: `${job.smtp_config.sender_name} <${job.smtp_config.username}>`,
           to: email.email,
           subject: email.subject,
           html: `<div><p>Hi ${email.firstName},</p>${email.body}</p></div>`
@@ -38,55 +43,64 @@ async function processJob(job: any) {
       }
 
       // Update job progress
-      await EmailJob.findByIdAndUpdate(job._id, {
-        completedEmails: completedCount,
-        failedEmails: failedCount
-      });
+      await supabase
+        .from('email_jobs')
+        .update({
+          completed_emails: completedCount,
+          failed_emails: failedCount
+        })
+        .eq('id', job.id);
 
-      if (job.csvData.indexOf(email) < job.csvData.length - 1) {
-        await sleep(job.emailDelay * 1000);
+      if (job.csv_data.indexOf(email) < job.csv_data.length - 1) {
+        await sleep(job.email_delay * 1000);
       }
     }
 
     // Mark job as completed
-    await EmailJob.findByIdAndUpdate(job._id, {
-      status: 'completed',
-      completedEmails: completedCount,
-      failedEmails: failedCount
-    });
+    await supabase
+      .from('email_jobs')
+      .update({
+        status: 'completed',
+        completed_emails: completedCount,
+        failed_emails: failedCount
+      })
+      .eq('id', job.id);
   } catch (error) {
     // Mark job as failed
-    await EmailJob.findByIdAndUpdate(job._id, {
-      status: 'failed',
-      error: error instanceof Error ? error.message : String(error),
-      completedEmails: completedCount,
-      failedEmails: failedCount
-    });
+    await supabase
+      .from('email_jobs')
+      .update({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        completed_emails: completedCount,
+        failed_emails: failedCount
+      })
+      .eq('id', job.id);
   }
 }
 
 export async function GET() {
   try {
-    await connectToDatabase();
-
     // Find pending jobs that are scheduled for now or in the past
-    const jobs = await EmailJob.find({
-      status: 'pending',
-      scheduledTime: { $lte: new Date() }
-    }).limit(5); // Process 5 jobs at a time
+    const { data: jobs, error } = await supabase
+      .from('email_jobs')
+      .select('*')
+      .eq('status', 'pending')
+      .lte('scheduled_time', new Date().toISOString())
+      .limit(5);
+
+    if (error) {
+      throw error;
+    }
 
     // Process each job
-    for (const job of jobs) {
-      // Mark job as processing
-      await EmailJob.findByIdAndUpdate(job._id, { status: 'processing' });
-      
-      // Process the job
+    for (const job of jobs || []) {
       await processJob(job);
     }
 
     return NextResponse.json({
       message: 'Jobs processed successfully',
-      jobsProcessed: jobs.length
+      jobsProcessed: jobs?.length || 0
     });
   } catch (error) {
     console.error('Error processing jobs:', error);

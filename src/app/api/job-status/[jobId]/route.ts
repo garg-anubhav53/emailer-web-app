@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/utils/database';
-import { EmailJob } from '@/models/EmailJob';
+import { supabase } from '@/utils/supabase';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { jobId: string } }
 ) {
   try {
-    await connectToDatabase();
-    const job = await EmailJob.findById(params.jobId);
+    const { data: job, error } = await supabase
+      .from('email_jobs')
+      .select('*')
+      .eq('id', params.jobId)
+      .single();
+
+    if (error) {
+      return NextResponse.json({ 
+        message: 'Error fetching job status',
+        error: error.message 
+      }, { status: 500 });
+    }
 
     if (!job) {
       return NextResponse.json({ 
@@ -18,10 +27,10 @@ export async function GET(
 
     return NextResponse.json({
       status: job.status,
-      completedEmails: job.completedEmails,
-      failedEmails: job.failedEmails,
-      totalEmails: job.csvData.length,
-      scheduledTime: job.scheduledTime,
+      completedEmails: job.completed_emails,
+      failedEmails: job.failed_emails,
+      totalEmails: job.total_emails,
+      scheduledTime: job.scheduled_time,
       error: job.error
     });
   } catch (error) {

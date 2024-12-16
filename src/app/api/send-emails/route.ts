@@ -1,6 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/utils/database';
-import { EmailJob } from '@/models/EmailJob';
+create table email_jobs (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  scheduled_time timestamp with time zone not null,
+  email_delay integer not null,
+  smtp_config jsonb not null,
+  csv_data jsonb not null,
+  status text not null default 'pending',
+  completed_emails integer not null default 0,
+  failed_emails integer not null default 0,
+  total_emails integer not null,
+  error text
+);
+
+-- Add row level security policies
+alter table email_jobs enable row level security;
+
+-- Allow public access for now (you might want to add authentication later)
+create policy "Allow public access to email_jobs"
+  on email_jobs for all
+  using (true)
+  with check (true);import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/utils/supabase';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
@@ -86,29 +106,41 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Connect to database
-    await connectToDatabase();
+    // Create email job in Supabase
+    const { data: job, error } = await supabase
+      .from('email_jobs')
+      .insert({
+        scheduled_time: scheduledTime ? new Date(scheduledTime).toISOString() : new Date().toISOString(),
+        email_delay: emailDelay,
+        smtp_config: {
+          username: smtpUsername,
+          password: smtpPassword,
+          server: smtpServer,
+          port: smtpPort,
+          sender_name: senderName
+        },
+        csv_data: csvData,
+        status: 'pending',
+        completed_emails: 0,
+        failed_emails: 0,
+        total_emails: csvData.length
+      })
+      .select()
+      .single();
 
-    // Create email job
-    const emailJob = await EmailJob.create({
-      scheduledTime: scheduledTime ? new Date(scheduledTime) : new Date(),
-      emailDelay,
-      smtpConfig: {
-        username: smtpUsername,
-        password: smtpPassword,
-        server: smtpServer,
-        port: smtpPort,
-        senderName
-      },
-      csvData,
-      status: 'pending'
-    });
+    if (error) {
+      console.error('Error creating job:', error);
+      return NextResponse.json({ 
+        message: 'Error creating email job',
+        error: error.message 
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       message: 'Email job created successfully',
-      jobId: emailJob._id,
+      jobId: job.id,
       totalEmails: csvData.length,
-      scheduledTime: emailJob.scheduledTime
+      scheduledTime: job.scheduled_time
     });
   } catch (error) {
     console.error('Error processing request:', error);
