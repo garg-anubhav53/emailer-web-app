@@ -12,15 +12,15 @@ interface EmailJob {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-  // Get jobId from URL
-  const jobId = request.url.split('/').pop();
-  
+export async function GET(
+  request: Request,
+  { params }: { params: { jobId: string } }
+): Promise<Response> {
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', jobId)
+      .eq('id', params.jobId)
       .single();
 
     if (error) {
