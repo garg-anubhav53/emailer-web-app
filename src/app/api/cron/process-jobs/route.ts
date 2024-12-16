@@ -2,12 +2,37 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabase';
 import nodemailer from 'nodemailer';
 
+interface SMTPConfig {
+  server: string;
+  port: number;
+  username: string;
+  password: string;
+  sender_name: string;
+}
+
+interface EmailJob {
+  id: string;
+  smtp_config: SMTPConfig;
+  csv_data: Array<{
+    firstName: string;
+    email: string;
+    subject: string;
+    body: string;
+  }>;
+  completed_emails: number;
+  failed_emails: number;
+  total_emails: number;
+  email_delay: number;
+  status: string;
+  scheduled_time: string;
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const maxDuration = 300; // 5 minutes maximum execution time
 export const dynamic = 'force-dynamic';
 
-async function processJob(job: any) {
+async function processJob(job: EmailJob) {
   const transporter = nodemailer.createTransport({
     host: job.smtp_config.server,
     port: job.smtp_config.port,

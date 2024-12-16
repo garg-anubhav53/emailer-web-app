@@ -16,7 +16,7 @@ async function parseCsvBuffer(buffer: Buffer): Promise<CSVRow[]> {
     const readable = Readable.from(buffer);
     readable
       .pipe(csv({
-        mapHeaders: ({ header }) => {
+        mapHeaders: ({ header }: { header: string }) => {
           const h = header.toLowerCase().trim();
           if (h === 'first name' || h === 'firstname' || h === 'first_name') return 'firstName';
           if (h === 'email' || h === 'email address' || h === 'emailaddress') return 'email';
@@ -25,7 +25,7 @@ async function parseCsvBuffer(buffer: Buffer): Promise<CSVRow[]> {
           return h;
         }
       }))
-      .on('data', (data: any) => {
+      .on('data', (data: CSVRow) => {
         if (data.firstName && data.email && data.subject && data.body) {
           results.push({
             firstName: data.firstName.trim(),
