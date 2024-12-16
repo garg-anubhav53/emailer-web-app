@@ -17,16 +17,17 @@ export async function GET(
   context: { params: { jobId: string } }
 ): Promise<NextResponse> {
   try {
-    const { data: job, error } = await supabase
+    const { data: job, error: supabaseError } = await supabase
       .from('email_jobs')
       .select('*')
       .eq('id', context.params.jobId)
       .single();
 
-    if (error) {
+    if (supabaseError) {
+      console.error('Error fetching job status:', supabaseError);
       return NextResponse.json({ 
         message: 'Error fetching job status',
-        error: error.message 
+        error: supabaseError.message 
       }, { status: 500 });
     }
 
@@ -48,9 +49,11 @@ export async function GET(
     }
 
     return NextResponse.json(jobStatus);
-  } catch {
+  } catch (error) {
+    console.error('Error processing job status request:', error);
     return NextResponse.json({ 
-      message: 'Internal Server Error' 
+      message: 'Error processing request',
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }
