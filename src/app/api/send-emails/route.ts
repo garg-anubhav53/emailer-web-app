@@ -1,25 +1,4 @@
-create table email_jobs (
-  id uuid default uuid_generate_v4() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  scheduled_time timestamp with time zone not null,
-  email_delay integer not null,
-  smtp_config jsonb not null,
-  csv_data jsonb not null,
-  status text not null default 'pending',
-  completed_emails integer not null default 0,
-  failed_emails integer not null default 0,
-  total_emails integer not null,
-  error text
-);
-
--- Add row level security policies
-alter table email_jobs enable row level security;
-
--- Allow public access for now (you might want to add authentication later)
-create policy "Allow public access to email_jobs"
-  on email_jobs for all
-  using (true)
-  with check (true);import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabase';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
