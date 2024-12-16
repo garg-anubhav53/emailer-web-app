@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { supabase } from '@/utils/supabase';
 
 interface EmailJob {
@@ -13,29 +13,25 @@ interface EmailJob {
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  request: Request,
-  context: { params: { jobId: string | string[] } }
+  _req: NextRequest,
+  { params }: { params: { jobId: string } }
 ) {
-  const jobId = Array.isArray(context.params.jobId) 
-    ? context.params.jobId[0] 
-    : context.params.jobId;
-  
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', jobId)
+      .eq('id', params.jobId)
       .single();
 
     if (error) {
-      return NextResponse.json({ 
+      return Response.json({ 
         message: 'Error fetching job status',
         error: error.message 
       }, { status: 500 });
     }
 
     if (!job) {
-      return NextResponse.json({ 
+      return Response.json({ 
         message: 'Job not found' 
       }, { status: 404 });
     }
@@ -51,9 +47,9 @@ export async function GET(
       jobStatus.error = job.error;
     }
 
-    return NextResponse.json(jobStatus);
+    return Response.json(jobStatus);
   } catch (error) {
-    return NextResponse.json({ 
+    return Response.json({ 
       message: 'Error processing request',
       error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
