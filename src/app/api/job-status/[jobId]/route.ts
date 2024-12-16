@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { Request, Response } from 'next/server';
 import { supabase } from '@/utils/supabase';
 
 interface EmailJob {
@@ -12,15 +12,15 @@ interface EmailJob {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { jobId: string } }
-) {
+export async function GET(request: Request) {
+  // Get jobId from URL
+  const jobId = request.url.split('/').pop();
+  
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', params.jobId)
+      .eq('id', jobId)
       .single();
 
     if (error) {
