@@ -13,10 +13,12 @@ interface EmailJob {
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Record<string, string> }
+  request: Request,
+  context: { params: { jobId: string | string[] } }
 ) {
-  const jobId = params.jobId;
+  const jobId = Array.isArray(context.params.jobId) 
+    ? context.params.jobId[0] 
+    : context.params.jobId;
   
   try {
     const { data: job, error } = await supabase
