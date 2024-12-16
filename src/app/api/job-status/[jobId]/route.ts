@@ -10,15 +10,18 @@ interface EmailJob {
   error?: string;
 }
 
-export async function GET(
-  request: NextRequest,
-  context: { params: { jobId: string } }
-) {
+type RouteContext = {
+  params: {
+    jobId: string;
+  };
+};
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
       .select('*')
-      .eq('id', context.params.jobId)
+      .eq('id', params.jobId)
       .single();
 
     if (error) {
