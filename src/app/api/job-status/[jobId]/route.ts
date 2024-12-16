@@ -10,10 +10,15 @@ interface EmailJob {
   error?: string;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { jobId: string } }
-): Promise<NextResponse> {
+export const dynamic = 'force-dynamic';
+
+type Props = {
+  params: {
+    jobId: string;
+  };
+};
+
+export async function GET(req: NextRequest, { params }: Props) {
   try {
     const { data: job, error } = await supabase
       .from('email_jobs')
